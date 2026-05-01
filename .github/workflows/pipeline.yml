@@ -33,17 +33,17 @@ jobs:
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        # Using huggingface-cli to push the deployment app
-        pip install huggingface_hub
-        huggingface-cli login --token $HF_TOKEN --add-to-git-credential
         # Setup git configuration
         git config --global user.email "github-actions@github.com"
         git config --global user.name "GitHub Actions"
         
-        # Clone space, copy deployment files, push
-        git clone https://huggingface.co/spaces/YOUR_HF_USERNAME/engine-maintenance-app hf_space
+        # Clone space using HF_TOKEN for authentication
+        git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
+        
+        # Copy deployment files and model
         cp deployment/* hf_space/
         cp model_building/best_model.joblib hf_space/
+        
         cd hf_space
         git add .
         git commit -m "Automated deployment from GitHub Actions" || echo "No changes to commit"

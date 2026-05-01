@@ -1,14 +1,17 @@
 # %% [markdown]
 # # Predictive Maintenance - Engine Health Monitoring
-#
+# 
 # ## Business Context
-# Vehicle breakdowns and engine failures lead to significant financial losses. Unexpected engine failures can cause expensive repairs, operational downtime, and safety risks. Predictive maintenance helps minimize these issues by leveraging sensor data to forecast potential failures before they occur.
+# Vehicle breakdowns and engine failures lead to significant financial losses. Predictive maintenance helps minimize these issues by leveraging sensor data to forecast potential failures before they occur.
 
 # %% [markdown]
 # ## 1. Setup and Master Folders Creation
 
 # %%
 import os
+import warnings
+warnings.filterwarnings('ignore')
+
 os.makedirs('data', exist_ok=True)
 os.makedirs('model_building', exist_ok=True)
 os.makedirs('model_building/plots', exist_ok=True)
@@ -21,58 +24,25 @@ print("Master folder and subfolders created successfully.")
 
 # %%
 import pandas as pd
+import numpy as np
 from huggingface_hub import HfApi
 try:
     from google.colab import userdata
 except ImportError:
     pass
 
-# Replace with your actual HF Token if running locally
-# os.environ['HF_TOKEN'] = 'YOUR_HF_TOKEN'
 try:
     HF_TOKEN = userdata.get('HF_TOKEN')
 except:
     HF_TOKEN = os.environ.get('HF_TOKEN')
 
-# Create mock data if it doesn't exist
-if not os.path.exists('data/engine_data.csv'):
-    import numpy as np
-    np.random.seed(42)
-    n = 2000
-    rpm = np.random.normal(2500, 500, n)
-    lub_oil_pressure = np.random.normal(3.5, 0.5, n)
-    fuel_pressure = np.random.normal(4.0, 0.4, n)
-    coolant_pressure = np.random.normal(2.0, 0.3, n)
-    lub_oil_temp = np.random.normal(85, 10, n)
-    coolant_temp = np.random.normal(80, 8, n)
-    
-    # Introduce correlation with target (1 = Faulty, 0 = Normal)
-    condition_prob = 1 / (1 + np.exp(-(
-        (rpm - 2500)/500 * 0.5 
-        - (lub_oil_pressure - 3.5)/0.5 * 1.5 
-        - (fuel_pressure - 4.0)/0.4 * 1.0 
-        + (lub_oil_temp - 85)/10 * 1.2 
-        + (coolant_temp - 80)/8 * 1.2
-    )))
-    condition = np.where(condition_prob > 0.5, 1, 0)
-    
-    df = pd.DataFrame({
-        'Engine_RPM': rpm, 'Lub_Oil_Pressure': lub_oil_pressure,
-        'Fuel_Pressure': fuel_pressure, 'Coolant_Pressure': coolant_pressure,
-        'Lub_Oil_Temperature': lub_oil_temp, 'Coolant_Temperature': coolant_temp,
-        'Engine_Condition': condition
-    })
-    
-    # Add outliers
-    outlier_indices = np.random.choice(n, size=50, replace=False)
-    df.loc[outlier_indices, 'Engine_RPM'] = np.random.uniform(5000, 6000, 50)
-    df.loc[outlier_indices, 'Lub_Oil_Temperature'] = np.random.uniform(120, 150, 50)
-    df.loc[outlier_indices, 'Engine_Condition'] = 1
-    
-    df.to_csv('data/engine_data.csv', index=False)
-    print("Generated mock dataset 'data/engine_data.csv'.")
+# Read actual dataset
+if os.path.exists('data/engine_data.csv'):
+    df = pd.read_csv('data/engine_data.csv')
+    print("Loaded actual dataset 'data/engine_data.csv'.")
+else:
+    print("Dataset 'data/engine_data.csv' not found. Please provide the dataset.")
 
-# If you have an HF token, you can push the dataset to HF:
 if HF_TOKEN:
     api = HfApi()
     user_info = api.whoami(token=HF_TOKEN)
@@ -87,8 +57,6 @@ if HF_TOKEN:
         token=HF_TOKEN
     )
     print(f"Dataset registered at: https://huggingface.co/datasets/{dataset_repo}")
-else:
-    print("HF_TOKEN not set. Skipping Hugging Face dataset registration.")
 
 # %% [markdown]
 # ## 3. Exploratory Data Analysis (EDA)
@@ -96,9 +64,9 @@ else:
 # %%
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.feature_selection import mutual_info_classif
 
 sns.set_theme(style='whitegrid', palette='muted')
-df = pd.read_csv('data/engine_data.csv')
 
 # 1. Target Variable Distribution
 plt.figure(figsize=(6, 4))
@@ -116,21 +84,53 @@ plt.savefig('model_building/plots/correlation_heatmap.png', bbox_inches='tight')
 plt.close()
 
 # 3. Distributions of Numerical Features
-num_cols = df.columns.drop('Engine_Condition')
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+num_cols = df.select_dtypes(include=[np.number]).columns.drop('Engine_Condition')
+fig, axes = plt.subplots((len(num_cols)+1)//2, 2, figsize=(15, 10))
 axes = axes.flatten()
 for i, col in enumerate(num_cols):
     sns.histplot(data=df, x=col, hue='Engine_Condition', kde=True, ax=axes[i], palette={0:'#2ecc71', 1:'#e74c3c'})
-    axes[i].set_title(col)
+    axes[i].set_title(f'Distribution of {col}')
 fig.tight_layout()
 plt.savefig('model_building/plots/feature_distributions.png', bbox_inches='tight')
 plt.close()
 
+# 4. Outlier Boxplots
+fig, axes = plt.subplots((len(num_cols)+1)//2, 2, figsize=(15, 10))
+axes = axes.flatten()
+for i, col in enumerate(num_cols):
+    sns.boxplot(data=df, y=col, x='Engine_Condition', ax=axes[i], palette={0:'#2ecc71', 1:'#e74c3c'})
+    axes[i].set_title(f'Boxplot of {col}')
+fig.tight_layout()
+plt.savefig('model_building/plots/outlier_boxplots.png', bbox_inches='tight')
+plt.close()
+
+# 5. Feature Importance (Mutual Information)
+X_mi = df.drop('Engine_Condition', axis=1)
+mi_scores = mutual_info_classif(X_mi, df['Engine_Condition'], random_state=42)
+mi_df = pd.DataFrame({'Feature': X_mi.columns, 'MI_Score': mi_scores}).sort_values('MI_Score', ascending=True)
+plt.figure(figsize=(8, 6))
+plt.barh(mi_df['Feature'], mi_df['MI_Score'], color=plt.cm.viridis(np.linspace(0.2, 0.9, len(mi_df))))
+plt.xlabel('Mutual Information Score')
+plt.title('Feature Importance (Mutual Information)')
+plt.savefig('model_building/plots/feature_importance_mi.png', bbox_inches='tight')
+plt.close()
+
+print("EDA completed and plots saved.")
+
 # %% [markdown]
-# ## 4. Data Preparation
+# ## 4. Feature Engineering & Data Preparation
 
 # %%
 from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+
+# Feature Engineering: Derived features
+df['Temp_Pressure_Ratio'] = df['Lub_Oil_Temperature'] / df['Lub_Oil_Pressure'].replace(0, np.nan)
+df['Temp_Pressure_Ratio'] = df['Temp_Pressure_Ratio'].fillna(df['Temp_Pressure_Ratio'].median())
+df['Coolant_Efficiency'] = df['Coolant_Pressure'] / df['Coolant_Temperature'].replace(0, np.nan)
+df['Coolant_Efficiency'] = df['Coolant_Efficiency'].fillna(df['Coolant_Efficiency'].median())
+df['High_RPM_Flag'] = (df['Engine_RPM'] > df['Engine_RPM'].quantile(0.85)).astype(int)
 
 # Outlier handling (IQR)
 def cap_outliers_iqr(data, columns, factor=1.5):
@@ -144,111 +144,197 @@ def cap_outliers_iqr(data, columns, factor=1.5):
         data_cleaned[col] = data_cleaned[col].clip(lower=lower, upper=upper)
     return data_cleaned
 
-df_cleaned = cap_outliers_iqr(df, num_cols)
+num_features_to_cap = ['Engine_RPM', 'Lub_Oil_Pressure', 'Fuel_Pressure', 'Coolant_Pressure', 'Lub_Oil_Temperature', 'Coolant_Temperature']
+df_cleaned = cap_outliers_iqr(df, num_features_to_cap)
 
 X = df_cleaned.drop('Engine_Condition', axis=1)
 y = df_cleaned['Engine_Condition']
 
+# Train/Test Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-train_df = pd.concat([X_train, y_train], axis=1)
-test_df = pd.concat([X_test, y_test], axis=1)
+# Preprocessing: Standard Scaling
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns)
+X_test_scaled = pd.DataFrame(X_test_scaled, columns=X_test.columns)
 
+# SMOTE for Class Imbalance
+smote = SMOTE(random_state=42)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled, y_train)
+print(f'Before SMOTE: {dict(y_train.value_counts())}')
+print(f'After SMOTE:  {dict(y_train_resampled.value_counts())}')
+
+train_df = pd.concat([X_train.reset_index(drop=True), y_train.reset_index(drop=True)], axis=1)
+test_df = pd.concat([X_test.reset_index(drop=True), y_test.reset_index(drop=True)], axis=1)
 train_df.to_csv('data/train.csv', index=False)
 test_df.to_csv('data/test.csv', index=False)
-print("Data Preparation complete. Saved train.csv and test.csv")
 
 if HF_TOKEN:
     api.upload_file(path_or_fileobj='data/train.csv', path_in_repo='train.csv', repo_id=dataset_repo, repo_type='dataset', token=HF_TOKEN)
     api.upload_file(path_or_fileobj='data/test.csv', path_in_repo='test.csv', repo_id=dataset_repo, repo_type='dataset', token=HF_TOKEN)
 
 # %% [markdown]
-# ## 5. Model Building with Experimentation Tracking
+# ## 5. Model Building, MLflow Tracking, and SHAP Explainability
 
 # %%
-import warnings
-warnings.filterwarnings('ignore')
-
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import RandomizedSearchCV
+from lightgbm import LGBMClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, roc_curve
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 import mlflow, mlflow.sklearn
-import joblib, json
+import joblib, json, shap
+
+cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 models_config = {
+    'DecisionTree': {
+        'model': DecisionTreeClassifier(random_state=42),
+        'params': {'max_depth':[5,10,15,None]}
+    },
     'RandomForest': {
         'model': RandomForestClassifier(random_state=42),
-        'params': {'n_estimators':[100,200], 'max_depth':[5,10,None]}
+        'params': {'n_estimators':[100,200,300], 'max_depth':[5,10,15,None]}
     },
     'GradientBoosting': {
         'model': GradientBoostingClassifier(random_state=42),
         'params': {'n_estimators':[100,200], 'learning_rate':[0.05, 0.1]}
     },
     'XGBoost': {
-        'model': XGBClassifier(random_state=42, eval_metric='logloss', use_label_encoder=False),
+        'model': XGBClassifier(random_state=42, eval_metric='logloss'),
         'params': {'n_estimators':[100,200], 'learning_rate':[0.05, 0.1], 'max_depth':[3,5,7]}
+    },
+    'AdaBoost': {
+        'model': AdaBoostClassifier(random_state=42, algorithm='SAMME'),
+        'params': {'n_estimators':[50,100,200], 'learning_rate':[0.05, 0.1, 0.5]}
+    },
+    'LightGBM': {
+        'model': LGBMClassifier(random_state=42, verbose=-1),
+        'params': {'n_estimators':[100,200], 'max_depth':[5,10,-1], 'learning_rate':[0.05, 0.1]}
     }
 }
 
-# Start MLflow locally if possible (skip if on colab without setup, but here we track in memory/files)
 mlflow.set_experiment('Engine_Predictive_Maintenance')
 
-best_model = None
-best_score = 0
-best_model_name = ''
-results = {}
+best_model = None; best_score = 0; best_model_name = ''
+results = {}; results_proba = {}; all_models = {}
 
 for name, config in models_config.items():
     with mlflow.start_run(run_name=name):
-        search = RandomizedSearchCV(config['model'], config['params'], cv=3, scoring='f1', n_iter=3, random_state=42)
-        search.fit(X_train, y_train)
+        search = RandomizedSearchCV(config['model'], config['params'], cv=cv_strategy, scoring='f1', n_iter=5, random_state=42)
+        search.fit(X_train_resampled, y_train_resampled)
         tuned = search.best_estimator_
         
         # Evaluate on Train
-        y_train_pred = tuned.predict(X_train)
+        y_train_pred = tuned.predict(X_train_scaled)
         train_accuracy = accuracy_score(y_train, y_train_pred)
         train_precision = precision_score(y_train, y_train_pred, zero_division=0)
         train_recall = recall_score(y_train, y_train_pred, zero_division=0)
         train_f1 = f1_score(y_train, y_train_pred, zero_division=0)
 
         # Evaluate on Test
-        y_test_pred = tuned.predict(X_test)
+        y_test_pred = tuned.predict(X_test_scaled)
+        y_test_proba = tuned.predict_proba(X_test_scaled)[:, 1] if hasattr(tuned, "predict_proba") else y_test_pred
+        
         test_accuracy = accuracy_score(y_test, y_test_pred)
         test_precision = precision_score(y_test, y_test_pred, zero_division=0)
         test_recall = recall_score(y_test, y_test_pred, zero_division=0)
         test_f1 = f1_score(y_test, y_test_pred, zero_division=0)
+        test_auc = roc_auc_score(y_test, y_test_proba)
         
-        # Log params and all metrics
         mlflow.log_params(search.best_params_)
+        mlflow.log_param('smote_applied', True)
         mlflow.log_metrics({
-            'train_accuracy': train_accuracy,
-            'train_precision': train_precision,
-            'train_recall': train_recall,
-            'train_f1-score': train_f1,
-            'test_accuracy': test_accuracy,
-            'test_precision': test_precision,
-            'test_recall': test_recall,
-            'test_f1-score': test_f1
+            'train_accuracy': train_accuracy, 'train_precision': train_precision,
+            'train_recall': train_recall, 'train_f1-score': train_f1,
+            'test_accuracy': test_accuracy, 'test_precision': test_precision,
+            'test_recall': test_recall, 'test_f1-score': test_f1,
+            'auc_roc': test_auc, 'cv_best_score': search.best_score_
         })
         
         mlflow.sklearn.log_model(tuned, name)
         
-        results[name] = test_f1
-        print(f"{name} Test F1 Score: {test_f1:.4f}")
+        results[name] = {'f1_score': test_f1, 'auc_roc': test_auc, 'cv_best_score': search.best_score_}
+        results_proba[name] = y_test_proba
+        all_models[name] = tuned
+        print(f"{name} -> Test F1 Score: {test_f1:.4f} | AUC: {test_auc:.4f}")
         
         if test_f1 > best_score:
-            best_score = test_f1
-            best_model = tuned
-            best_model_name = name
+            best_score = test_f1; best_model = tuned; best_model_name = name
 
 print(f"\nBest Model: {best_model_name} (F1: {best_score:.4f})")
 
-model_path = 'model_building/best_model.joblib'
-joblib.dump(best_model, model_path)
+# %% [markdown]
+# ## 6. Model Evaluation Plots & JSON Export
+
+# %%
+# Confusion Matrix for Best Model
+best_y_pred = all_models[best_model_name].predict(X_test_scaled)
+cm = confusion_matrix(y_test, best_y_pred)
+plt.figure(figsize=(6, 4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Normal', 'Faulty'], yticklabels=['Normal', 'Faulty'])
+plt.xlabel('Predicted'); plt.ylabel('Actual'); plt.title(f'Confusion Matrix — {best_model_name}')
+plt.savefig('model_building/plots/confusion_matrix.png', bbox_inches='tight')
+plt.close()
+
+# ROC Curves for all Models
+plt.figure(figsize=(10, 8))
+colors = plt.cm.Set1(np.linspace(0, 1, len(results_proba)))
+for (name, y_p), color in zip(results_proba.items(), colors):
+    fpr, tpr, _ = roc_curve(y_test, y_p)
+    plt.plot(fpr, tpr, color=color, linewidth=2, label=f'{name} (AUC={roc_auc_score(y_test, y_p):.3f})')
+plt.plot([0, 1], [0, 1], 'k--', alpha=0.5, label='Random')
+plt.xlabel('False Positive Rate'); plt.ylabel('True Positive Rate'); plt.title('ROC Curves')
+plt.legend(loc='lower right')
+plt.savefig('model_building/plots/roc_curves.png', bbox_inches='tight')
+plt.close()
+
+# SHAP Explainability
+try:
+    explainer = shap.TreeExplainer(all_models[best_model_name])
+    shap_values = explainer.shap_values(X_test_scaled)
+    if isinstance(shap_values, list): shap_values_plot = shap_values[1]
+    else: shap_values_plot = shap_values
+    
+    plt.figure(figsize=(10, 8))
+    shap.summary_plot(shap_values_plot, X_test_scaled, show=False)
+    plt.title('SHAP Summary Plot')
+    plt.savefig('model_building/plots/shap_summary.png', bbox_inches='tight')
+    plt.close()
+except Exception as e:
+    print(f"SHAP Error: {e}")
+
+# JSON Export
+from sklearn.pipeline import Pipeline
+# Bundle scaler and best model for deployment
+deploy_pipeline = Pipeline([('scaler', scaler), ('model', best_model)])
+joblib.dump(deploy_pipeline, 'model_building/best_model.joblib')
+
+feature_info = {
+    'feature_names': list(X_train.columns),
+    'best_model_name': best_model_name,
+    'best_f1_score': best_score,
+    'smote_applied': True,
+    'engineered_features': ['Temp_Pressure_Ratio', 'Coolant_Efficiency', 'High_RPM_Flag']
+}
+with open('model_building/feature_info.json', 'w') as f:
+    json.dump(feature_info, f, indent=2)
+
+with open('model_building/model_comparison.json', 'w') as f:
+    json.dump({'best_model': best_model_name, 'results': results}, f, indent=2)
+
+# Model Quality Gate
+if best_score < 0.70 or results[best_model_name]['auc_roc'] < 0.75:
+    raise ValueError(f"Quality Gate Failed: Model F1 ({best_score:.4f}) or AUC too low.")
+print("Model passed Quality Gate!")
 
 if HF_TOKEN:
-    model_repo = f'{HF_USERNAME}/engine-maintenance-model'
-    api.create_repo(repo_id=model_repo, exist_ok=True, token=HF_TOKEN)
-    api.upload_file(path_or_fileobj=model_path, path_in_repo='best_model.joblib', repo_id=model_repo, token=HF_TOKEN)
-    print(f"Model registered at: https://huggingface.co/{model_repo}")
+    api.upload_file(path_or_fileobj='model_building/best_model.joblib', path_in_repo='best_model.joblib', repo_id=model_repo, token=HF_TOKEN)
+    api.upload_file(path_or_fileobj='model_building/feature_info.json', path_in_repo='feature_info.json', repo_id=model_repo, token=HF_TOKEN)
+    api.upload_file(path_or_fileobj='model_building/model_comparison.json', path_in_repo='model_comparison.json', repo_id=model_repo, token=HF_TOKEN)
+    import glob
+    for fpath in glob.glob('model_building/plots/*.png'):
+        api.upload_file(path_or_fileobj=fpath, path_in_repo=f'plots/{os.path.basename(fpath)}', repo_id=model_repo, token=HF_TOKEN)

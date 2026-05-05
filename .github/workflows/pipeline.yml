@@ -29,7 +29,7 @@ jobs:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         jupytext --to notebook predictive_maintenance.py
-        jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=600
+        jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=1800
 
     - name: Deploy to Hugging Face
       env:

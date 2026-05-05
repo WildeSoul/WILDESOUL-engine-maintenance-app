@@ -22,25 +22,25 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r deployment/requirements.txt
-        pip install jupyter nbconvert huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm
+        pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm
 
-    - name: Run Jupyter Notebook
+    - name: Convert and Execute Notebook
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        # Execute the notebook to ensure no errors
-        jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb
+        jupytext --to notebook predictive_maintenance.py
+        mv predictive_maintenance.ipynb predictive_maintenance.ipynb
+        jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=600
 
     - name: Deploy to Hugging Face
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        # Setup git configuration
         git config --global user.email "github-actions@github.com"
         git config --global user.name "GitHub Actions"
         
-        # Clone space using HF_TOKEN for authentication
         git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
         
-        # Copy deployment files and model
         cp deployment/* hf_space/
         cp model_building/best_model.joblib hf_space/
         

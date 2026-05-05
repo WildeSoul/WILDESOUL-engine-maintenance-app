@@ -342,6 +342,8 @@ if best_score < 0.60 or results[best_model_name]['auc_roc'] < 0.65:
 print("Model passed Quality Gate!")
 
 if HF_TOKEN:
+    model_repo = f'{HF_USERNAME}/engine-maintenance-model'
+    api.create_repo(repo_id=model_repo, exist_ok=True, token=HF_TOKEN)
     api.upload_file(path_or_fileobj='model_building/best_model.joblib', path_in_repo='best_model.joblib', repo_id=model_repo, token=HF_TOKEN)
     api.upload_file(path_or_fileobj='model_building/feature_info.json', path_in_repo='feature_info.json', repo_id=model_repo, token=HF_TOKEN)
     api.upload_file(path_or_fileobj='model_building/model_comparison.json', path_in_repo='model_comparison.json', repo_id=model_repo, token=HF_TOKEN)

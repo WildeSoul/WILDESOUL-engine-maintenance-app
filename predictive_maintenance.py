@@ -304,13 +304,15 @@ plt.close()
 
 # SHAP Explainability
 try:
+    # Use a representative sample of 100 instances to drastically reduce SHAP computation time in CI/CD
+    X_test_sample = X_test_scaled[:100]
     explainer = shap.TreeExplainer(all_models[best_model_name])
-    shap_values = explainer.shap_values(X_test_scaled)
+    shap_values = explainer.shap_values(X_test_sample)
     if isinstance(shap_values, list): shap_values_plot = shap_values[1]
     else: shap_values_plot = shap_values
     
     plt.figure(figsize=(10, 8))
-    shap.summary_plot(shap_values_plot, X_test_scaled, show=False)
+    shap.summary_plot(shap_values_plot, X_test_sample, show=False)
     plt.title('SHAP Summary Plot')
     plt.savefig('model_building/plots/shap_summary.png', bbox_inches='tight')
     plt.close()

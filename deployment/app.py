@@ -19,7 +19,7 @@ def load_model():
 model = load_model()
 
 st.sidebar.header("Engine Sensor Inputs")
-rpm = st.sidebar.number_input("Engine RPM", 0.0, 10000.0, 2500.0)
+rpm = st.sidebar.number_input("Engine RPM", 0.0, 10000.0, 750.0)
 lub_oil_pressure = st.sidebar.number_input("Lub Oil Pressure", 0.0, 10.0, 3.5)
 fuel_pressure = st.sidebar.number_input("Fuel Pressure", 0.0, 10.0, 4.0)
 coolant_pressure = st.sidebar.number_input("Coolant Pressure", 0.0, 10.0, 2.0)
@@ -44,7 +44,7 @@ input_data['Temp_Pressure_Ratio'] = input_data['Lub_Oil_Temperature'] / input_da
 input_data['Temp_Pressure_Ratio'] = input_data['Temp_Pressure_Ratio'].fillna(0)
 input_data['Coolant_Efficiency'] = input_data['Coolant_Pressure'] / input_data['Coolant_Temperature'].replace(0, np.nan)
 input_data['Coolant_Efficiency'] = input_data['Coolant_Efficiency'].fillna(0)
-input_data['High_RPM_Flag'] = (input_data['Engine_RPM'] > 3000).astype(int)
+input_data['High_RPM_Flag'] = (input_data['Engine_RPM'] > 1062).astype(int)
 
 if st.button("Predict"):
     if model is not None:

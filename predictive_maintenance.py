@@ -190,11 +190,11 @@ if HF_TOKEN:
 
 # %%
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, VotingClassifier
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, roc_curve
-from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, roc_curve, precision_recall_curve, classification_report
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold, learning_curve
 import mlflow, mlflow.sklearn
 import joblib, json, shap
 
@@ -304,7 +304,6 @@ plt.close()
 
 # SHAP Explainability
 try:
-    # Use a representative sample of 100 instances to drastically reduce SHAP computation time in CI/CD
     X_test_sample = X_test_scaled[:100]
     explainer = shap.TreeExplainer(all_models[best_model_name])
     shap_values = explainer.shap_values(X_test_sample)
@@ -316,12 +315,118 @@ try:
     plt.title('SHAP Summary Plot')
     plt.savefig('model_building/plots/shap_summary.png', bbox_inches='tight')
     plt.close()
+
+    # SHAP Bar Plot (mean absolute SHAP values)
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_values_plot, X_test_sample, plot_type="bar", show=False)
+    plt.title('SHAP Feature Importance (Bar)')
+    plt.savefig('model_building/plots/shap_bar.png', bbox_inches='tight')
+    plt.close()
 except Exception as e:
     print(f"SHAP Error: {e}")
 
-# JSON Export
+# %% [markdown]
+# ## 7. Advanced Analysis: Voting Ensemble, PR Curves, Learning Curves
+
+# %%
+# ── Voting Ensemble (Top-3 Models) ──
+sorted_models = sorted(results.items(), key=lambda x: x[1]['f1_score'], reverse=True)
+top3_names = [name for name, _ in sorted_models[:3]]
+top3_estimators = [(name, all_models[name]) for name in top3_names]
+print(f"\nBuilding Voting Ensemble from top-3: {top3_names}")
+
+voting_clf = VotingClassifier(estimators=top3_estimators, voting='soft')
+voting_clf.fit(X_train_resampled, y_train_resampled)
+
+y_vote_pred = voting_clf.predict(X_test_scaled)
+y_vote_proba = voting_clf.predict_proba(X_test_scaled)[:, 1]
+vote_f1 = f1_score(y_test, y_vote_pred, zero_division=0)
+vote_auc = roc_auc_score(y_test, y_vote_proba)
+print(f"Voting Ensemble -> F1: {vote_f1:.4f} | AUC: {vote_auc:.4f}")
+
+# Use ensemble if it outperforms the best single model
+if vote_f1 > best_score:
+    print(f"Voting Ensemble outperforms {best_model_name}! Using ensemble as final model.")
+    best_model = voting_clf
+    best_model_name = 'VotingEnsemble'
+    best_score = vote_f1
+    results['VotingEnsemble'] = {'f1_score': vote_f1, 'auc_roc': vote_auc, 'cv_best_score': 0}
+    results_proba['VotingEnsemble'] = y_vote_proba
+    all_models['VotingEnsemble'] = voting_clf
+else:
+    print(f"Best single model {best_model_name} (F1={best_score:.4f}) still wins over ensemble (F1={vote_f1:.4f}).")
+    results['VotingEnsemble'] = {'f1_score': vote_f1, 'auc_roc': vote_auc, 'cv_best_score': 0}
+    results_proba['VotingEnsemble'] = y_vote_proba
+    all_models['VotingEnsemble'] = voting_clf
+
+# ── Precision-Recall Curves ──
+plt.figure(figsize=(10, 8))
+pr_colors = plt.cm.Set2(np.linspace(0, 1, len(results_proba)))
+for (name, y_p), color in zip(results_proba.items(), pr_colors):
+    prec_vals, rec_vals, _ = precision_recall_curve(y_test, y_p)
+    plt.plot(rec_vals, prec_vals, color=color, linewidth=2, label=f'{name}')
+plt.xlabel('Recall'); plt.ylabel('Precision')
+plt.title('Precision-Recall Curves — All Models')
+plt.legend(loc='lower left', fontsize=8)
+plt.grid(True, alpha=0.3)
+plt.savefig('model_building/plots/precision_recall_curves.png', bbox_inches='tight')
+plt.close()
+
+# ── Learning Curve for Best Model ──
+try:
+    train_sizes, train_scores, val_scores = learning_curve(
+        all_models[best_model_name], X_train_resampled, y_train_resampled,
+        cv=3, scoring='f1', train_sizes=np.linspace(0.2, 1.0, 5),
+        n_jobs=-1, random_state=42
+    )
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_sizes, train_scores.mean(axis=1), 'o-', color='#667eea', label='Training F1', linewidth=2)
+    plt.fill_between(train_sizes, train_scores.mean(axis=1) - train_scores.std(axis=1),
+                     train_scores.mean(axis=1) + train_scores.std(axis=1), alpha=0.15, color='#667eea')
+    plt.plot(train_sizes, val_scores.mean(axis=1), 'o-', color='#e74c3c', label='Validation F1', linewidth=2)
+    plt.fill_between(train_sizes, val_scores.mean(axis=1) - val_scores.std(axis=1),
+                     val_scores.mean(axis=1) + val_scores.std(axis=1), alpha=0.15, color='#e74c3c')
+    plt.xlabel('Training Set Size'); plt.ylabel('F1 Score')
+    plt.title(f'Learning Curve — {best_model_name}')
+    plt.legend(loc='lower right'); plt.grid(True, alpha=0.3)
+    plt.savefig('model_building/plots/learning_curve.png', bbox_inches='tight')
+    plt.close()
+    print(f"Learning curve generated for {best_model_name}.")
+except Exception as e:
+    print(f"Learning Curve Error: {e}")
+
+# ── Classification Report ──
+best_y_final = all_models[best_model_name].predict(X_test_scaled)
+report = classification_report(y_test, best_y_final, target_names=['Normal', 'Faulty'], output_dict=True)
+report_text = classification_report(y_test, best_y_final, target_names=['Normal', 'Faulty'])
+print(f"\nClassification Report — {best_model_name}:\n{report_text}")
+
+with open('model_building/classification_report.json', 'w') as f:
+    json.dump(report, f, indent=2)
+
+# ── Model Comparison Bar Chart ──
+model_names_sorted = sorted(results.keys(), key=lambda x: results[x]['f1_score'], reverse=True)
+f1_vals = [results[n]['f1_score'] for n in model_names_sorted]
+auc_vals = [results[n]['auc_roc'] for n in model_names_sorted]
+
+fig, ax = plt.subplots(figsize=(12, 6))
+x_pos = np.arange(len(model_names_sorted))
+bars1 = ax.bar(x_pos - 0.2, f1_vals, 0.35, label='F1 Score', color='#667eea')
+bars2 = ax.bar(x_pos + 0.2, auc_vals, 0.35, label='AUC-ROC', color='#764ba2')
+ax.set_xticks(x_pos); ax.set_xticklabels(model_names_sorted, rotation=30, ha='right')
+ax.set_ylabel('Score'); ax.set_title('Model Performance Comparison')
+ax.legend(); ax.set_ylim(0, 1.1)
+for bar in bars1: ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, f'{bar.get_height():.3f}', ha='center', fontsize=8)
+for bar in bars2: ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, f'{bar.get_height():.3f}', ha='center', fontsize=8)
+plt.tight_layout()
+plt.savefig('model_building/plots/model_comparison.png', bbox_inches='tight')
+plt.close()
+
+# %% [markdown]
+# ## 8. Model Export, Quality Gate & HuggingFace Registration
+
+# %%
 from sklearn.pipeline import Pipeline
-# Bundle scaler and best model for deployment
 deploy_pipeline = Pipeline([('scaler', scaler), ('model', best_model)])
 joblib.dump(deploy_pipeline, 'model_building/best_model.joblib')
 
@@ -330,7 +435,10 @@ feature_info = {
     'best_model_name': best_model_name,
     'best_f1_score': best_score,
     'smote_applied': True,
-    'engineered_features': ['Temp_Pressure_Ratio', 'Coolant_Efficiency', 'High_RPM_Flag']
+    'engineered_features': ['Temp_Pressure_Ratio', 'Coolant_Efficiency', 'High_RPM_Flag'],
+    'n_models_trained': len(results),
+    'voting_ensemble_included': True,
+    'quality_gate': {'f1_threshold': 0.60, 'auc_threshold': 0.65}
 }
 with open('model_building/feature_info.json', 'w') as f:
     json.dump(feature_info, f, indent=2)
@@ -341,7 +449,7 @@ with open('model_building/model_comparison.json', 'w') as f:
 # Model Quality Gate
 if best_score < 0.60 or results[best_model_name]['auc_roc'] < 0.65:
     raise ValueError(f"Quality Gate Failed: Model F1 ({best_score:.4f}) or AUC too low.")
-print("Model passed Quality Gate!")
+print(f"\n✅ Quality Gate PASSED — {best_model_name}: F1={best_score:.4f}, AUC={results[best_model_name]['auc_roc']:.4f}")
 
 if HF_TOKEN:
     model_repo = f'{HF_USERNAME}/engine-maintenance-model'
@@ -349,6 +457,8 @@ if HF_TOKEN:
     api.upload_file(path_or_fileobj='model_building/best_model.joblib', path_in_repo='best_model.joblib', repo_id=model_repo, token=HF_TOKEN)
     api.upload_file(path_or_fileobj='model_building/feature_info.json', path_in_repo='feature_info.json', repo_id=model_repo, token=HF_TOKEN)
     api.upload_file(path_or_fileobj='model_building/model_comparison.json', path_in_repo='model_comparison.json', repo_id=model_repo, token=HF_TOKEN)
+    api.upload_file(path_or_fileobj='model_building/classification_report.json', path_in_repo='classification_report.json', repo_id=model_repo, token=HF_TOKEN)
     import glob
     for fpath in glob.glob('model_building/plots/*.png'):
         api.upload_file(path_or_fileobj=fpath, path_in_repo=f'plots/{os.path.basename(fpath)}', repo_id=model_repo, token=HF_TOKEN)
+    print(f"Model & artifacts uploaded to: https://huggingface.co/{model_repo}")

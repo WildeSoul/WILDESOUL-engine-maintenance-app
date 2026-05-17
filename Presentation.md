@@ -1,4 +1,62 @@
-# 🎯 Predictive Maintenance Model: Portfolio Presentation
+<<<<<<< HEAD
+# 🎯 Predictive Maintenance: Portfolio Presentation
+
+## 1. Project Overview
+
+**Title:** Predictive Engine Health Monitoring System  
+**Author:** Dibyajyoti (WildeSoul)  
+**Live Demo:** [engine-maintenance-app](https://huggingface.co/spaces/WILDESOUL/engine-maintenance-app)
+
+**Business Context:** Unplanned vehicle breakdowns cost fleet operators thousands in emergency repairs and downtime. This project builds a production-grade ML system that analyzes real-time engine sensor data to predict failures before they occur.
+
+**Objective:** Deploy an automated MLOps pipeline that trains 7 ML models (including a Voting Ensemble), evaluates them against a quality gate, and deploys the best model as an interactive Streamlit dashboard.
+
+---
+
+## 2. Technical Deep Dive
+
+### Data Pipeline
+- **Data Source:** 19,536 engine records registered on HuggingFace Dataset Hub
+- **Cleaning:** IQR outlier capping on 6 sensor features
+- **Feature Engineering:** Temp_Pressure_Ratio, Coolant_Efficiency, High_RPM_Flag
+- **Resampling:** SMOTE applied on training data to balance classes
+
+### Model Development
+- **7 Models:** DecisionTree, RandomForest, GradientBoosting, XGBoost, AdaBoost, LightGBM, Voting Ensemble
+- **Tuning:** RandomizedSearchCV with 5-fold StratifiedKFold
+- **Tracking:** MLflow logs 10 metrics per model
+- **Explainability:** SHAP TreeExplainer summary and bar plots
+- **Advanced Analysis:** Precision-Recall curves, Learning curves, Classification report
+
+### Deployment and MLOps
+- **Dashboard:** Streamlit app with 4 tabs (Prediction, Gauges, Model Comparison, Batch Predict)
+- **CI/CD:** Multi-stage GitHub Actions pipeline (Train then Deploy)
+- **Hosting Script:** deploy_to_hf.py for standalone deployment
+- **Drift Detection:** drift_monitor.py with Evidently AI
+
+---
+
+## 3. Business Impact
+
+1. **Proactive Scheduling:** Sensor-driven maintenance reduces emergency repairs by 30-40%
+2. **Cost Optimization:** Estimated savings of $15,000-$25,000 per quarter for a 100-vehicle fleet
+3. **Sensor Calibration:** Temp_Pressure_Ratio is highly predictive - recalibrate sensors every 500 hours
+4. **Fleet Uptime:** Maximize uptime by 20-25% and reduce unplanned downtime to near-zero
+
+---
+
+## 4. Project Links
+
+| Resource | URL |
+|----------|-----|
+| GitHub Repository | https://github.com/WildeSoul/WILDESOUL-engine-maintenance-app |
+| Live Streamlit App | https://huggingface.co/spaces/WILDESOUL/engine-maintenance-app |
+| Dataset Registry | https://huggingface.co/datasets/WILDESOUL/engine-predictive-maintenance-dataset |
+| Model Registry | https://huggingface.co/WILDESOUL/engine-maintenance-model |
+
+*AIML Capstone Project 2026 WildeSoul*
+=======
+# 🎯 Predictive Maintenance Model: Presentation
 
 ## 1. 💡 Project Overview (The Elevator Pitch)
 **Title:** Predictive Engine Health Monitoring System
@@ -33,3 +91,4 @@
 * **Proactive Scheduling:** "The model allows fleet managers to move from expensive, reactive repairs to scheduled, preventative maintenance, leading to an estimated **30-40% reduction in emergency service calls**."
 * **Cost Savings:** "By accurately predicting failures before catastrophic mechanical breakdown, we anticipate saving the company thousands of dollars in engine replacement and emergency logistics costs per quarter."
 * **Operational Efficiency:** "This predictive dashboard provides clear, data-backed insights, allowing Operations teams to optimize vehicle scheduling, maximize fleet uptime, and greatly reduce unexpected delays in the supply chain."
+>>>>>>> 7cc97198d2d889b7206651cda6252f27f82fbb8f

@@ -2,19 +2,12 @@ name: Engine Maintenance MLOps Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  # ──────────────────────────────────
-  # Stage 1: Train & Evaluate Models
-  # ──────────────────────────────────
-  train:
+  train-and-deploy:
     runs-on: ubuntu-latest
-    outputs:
-      model_ready: ${{ steps.quality.outputs.passed }}
-
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
@@ -24,7 +17,7 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Cache pip packages
+    - name: Cache pip
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
@@ -37,15 +30,14 @@ jobs:
         pip install -r deployment/requirements.txt
         pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm plotly
 
-    - name: Convert and Execute Notebook
+    - name: Train Models
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         jupytext --to notebook predictive_maintenance.py
         jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=1800
 
-    - name: Quality Gate Check
-      id: quality
+    - name: Quality Gate
       run: |
         python -c "
         import json
@@ -54,73 +46,26 @@ jobs:
         best = data['best_model']
         f1 = data['results'][best]['f1_score']
         auc = data['results'][best]['auc_roc']
-        print(f'Best Model: {best} | F1: {f1:.4f} | AUC: {auc:.4f}')
-        if f1 < 0.60 or auc < 0.65:
-            print('::error::Quality Gate FAILED')
-            exit(1)
+        print(f'Best: {best} | F1: {f1:.4f} | AUC: {auc:.4f}')
+        assert f1 >= 0.60 and auc >= 0.65, 'Quality Gate FAILED'
         print('Quality Gate PASSED')
-        print(f'::set-output name=passed::true')
         "
 
-    - name: Upload Training Artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: trained-model
-        path: |
-          model_building/best_model.joblib
-          model_building/feature_info.json
-          model_building/model_comparison.json
-          model_building/plots/
-
-  # ──────────────────────────────────
-  # Stage 2: Deploy to HuggingFace
-  # ──────────────────────────────────
-  deploy:
-    needs: train
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-
-    - name: Download Model Artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: trained-model
-        path: model_building/
-
-    - name: Deploy to Hugging Face Space
+    - name: Deploy to HuggingFace
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         git config --global user.email "github-actions@github.com"
         git config --global user.name "GitHub Actions"
-
         git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
-<<<<<<< HEAD
-
-        # Remove stale Dockerfile to force native Streamlit SDK
         rm -f hf_space/Dockerfile
-
-        # Copy deployment files
         cp deployment/app.py hf_space/
         cp deployment/requirements.txt hf_space/
         cp deployment/README.md hf_space/
-
-        # Copy model and metadata
-=======
-        
-        # Remove stale Dockerfile to force native Streamlit SDK
-        rm -f hf_space/Dockerfile
-        
-        # Copy deployment files and model
-        cp deployment/* hf_space/
->>>>>>> 7cc97198d2d889b7206651cda6252f27f82fbb8f
         cp model_building/best_model.joblib hf_space/
         cp model_building/feature_info.json hf_space/ 2>/dev/null || true
         cp model_building/model_comparison.json hf_space/ 2>/dev/null || true
-
         cd hf_space
         git add .
-        git commit -m "Deploy: Model retrained and app updated via GitHub Actions" || echo "No changes"
+        git commit -m "Deploy: retrained model and updated app" || echo "No changes"
         git push origin main

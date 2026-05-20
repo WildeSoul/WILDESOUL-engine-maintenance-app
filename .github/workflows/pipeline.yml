@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    # ── Step 1: Setup ──────────────────────────────────────────────
+    # -- Step 1: Setup --
     - name: Checkout Code
       uses: actions/checkout@v3
 
@@ -33,12 +33,11 @@ jobs:
         pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm plotly scipy
         pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-    # ── Step 2: Data Registration & Preparation ────────────────────
-    # This step executes predictive_maintenance.py which:
-    #   - Registers data on HuggingFace dataset space
-    #   - Performs EDA with univariate, bivariate, multivariate analysis
-    #   - Cleans data, handles outliers, engineers features
-    #   - Splits into train/test and uploads to HuggingFace
+    # -- Step 2: Data Registration & EDA --
+    # Registers data on HuggingFace dataset space
+    # Performs EDA with univariate, bivariate, multivariate analysis
+    # Cleans data, handles outliers, engineers features
+    # Splits into train/test and uploads to HuggingFace
     - name: Data Registration and EDA
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -46,7 +45,7 @@ jobs:
         jupytext --to notebook predictive_maintenance.py
         echo "Converting to notebook and executing all ML steps..."
 
-    # ── Step 3: Model Training & Experiment Tracking ───────────────
+    # -- Step 3: Model Training & Experiment Tracking --
     # Trains Decision Tree, Bagging, Random Forest, AdaBoost,
     # Gradient Boosting, XGBoost, LightGBM + Voting Ensemble
     # Logs all parameters and metrics to MLflow
@@ -56,7 +55,7 @@ jobs:
       run: |
         jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=1800
 
-    # ── Step 4: Quality Gate ───────────────────────────────────────
+    # -- Step 4: Quality Gate --
     - name: Quality Gate - Verify Model Performance
       run: |
         python -c "
@@ -73,7 +72,7 @@ jobs:
         print('Quality Gate PASSED')
         "
 
-    # ── Step 5: Model Registration on HuggingFace Hub ──────────────
+    # -- Step 5: Model Registration on HuggingFace Hub --
     - name: Register Best Model on HuggingFace Model Hub
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -96,45 +95,70 @@ jobs:
         print(f'Model registered at: https://huggingface.co/{repo}')
         "
 
-    # ── Step 6: Deploy to HuggingFace Space ────────────────────────
+    # -- Step 6: Deploy to HuggingFace Space via API --
     - name: Deploy Streamlit App to HuggingFace Space
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        git config --global user.email "github-actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
-        rm -f hf_space/Dockerfile
+        python -c "
+        from huggingface_hub import HfApi
+        import os, glob
 
-        # Core deployment files
-        cp deployment/app.py hf_space/
-        cp deployment/requirements.txt hf_space/
-        cp deployment/README.md hf_space/
-        cp deployment/Dockerfile hf_space/
+        token = os.environ['HF_TOKEN']
+        api = HfApi()
+        space_repo = 'WILDESOUL/engine-maintenance-app'
 
-        # Traditional ML model artifacts
-        cp model_building/best_model.joblib hf_space/
-        cp model_building/feature_info.json hf_space/ 2>/dev/null || true
-        cp model_building/model_comparison.json hf_space/ 2>/dev/null || true
+        # Map of local files to repo paths
+        files = {
+            'deployment/app.py': 'app.py',
+            'deployment/requirements.txt': 'requirements.txt',
+            'deployment/README.md': 'README.md',
+            'deployment/Dockerfile': 'Dockerfile',
+            'model_building/best_model.joblib': 'best_model.joblib',
+            'model_building/feature_info.json': 'feature_info.json',
+            'model_building/model_comparison.json': 'model_comparison.json',
+            'model_building/transformer_model.pt': 'model_building/transformer_model.pt',
+            'model_building/transformer_scaler.joblib': 'model_building/transformer_scaler.joblib',
+            'model_building/param_stats.json': 'model_building/param_stats.json',
+            'model_building/evaluation_report.json': 'model_building/evaluation_report.json',
+            'model_building/training_history.json': 'model_building/training_history.json',
+            'model_building/shap_values.npy': 'model_building/shap_values.npy',
+            'model_building/shap_feature_names.json': 'model_building/shap_feature_names.json',
+            'model_building/shap_X_sample.npy': 'model_building/shap_X_sample.npy',
+            'transformer_model.py': 'transformer_model.py',
+            'config.py': 'config.py',
+            'advanced_features.py': 'advanced_features.py',
+        }
 
-        # Transformer model & artifacts (if trained locally and committed)
-        mkdir -p hf_space/model_building/plots
-        cp model_building/transformer_model.pt hf_space/model_building/ 2>/dev/null || true
-        cp model_building/transformer_scaler.joblib hf_space/model_building/ 2>/dev/null || true
-        cp model_building/param_stats.json hf_space/model_building/ 2>/dev/null || true
-        cp model_building/evaluation_report.json hf_space/model_building/ 2>/dev/null || true
-        cp model_building/training_history.json hf_space/model_building/ 2>/dev/null || true
-        cp model_building/shap_values.npy hf_space/model_building/ 2>/dev/null || true
-        cp model_building/shap_feature_names.json hf_space/model_building/ 2>/dev/null || true
-        cp model_building/shap_X_sample.npy hf_space/model_building/ 2>/dev/null || true
-        cp model_building/plots/*.png hf_space/model_building/plots/ 2>/dev/null || true
+        uploaded = 0
+        for local_path, repo_path in files.items():
+            if os.path.exists(local_path):
+                try:
+                    api.upload_file(
+                        path_or_fileobj=local_path,
+                        path_in_repo=repo_path,
+                        repo_id=space_repo,
+                        repo_type='space',
+                        token=token
+                    )
+                    print(f'[OK] {local_path} -> {repo_path}')
+                    uploaded += 1
+                except Exception as e:
+                    print(f'[WARN] {local_path}: {e}')
 
-        # Transformer source files (for model loading in app)
-        cp transformer_model.py hf_space/ 2>/dev/null || true
-        cp config.py hf_space/ 2>/dev/null || true
-        cp advanced_features.py hf_space/ 2>/dev/null || true
+        # Upload plots
+        for fpath in glob.glob('model_building/plots/*.png'):
+            try:
+                api.upload_file(
+                    path_or_fileobj=fpath,
+                    path_in_repo=f'model_building/plots/{os.path.basename(fpath)}',
+                    repo_id=space_repo,
+                    repo_type='space',
+                    token=token
+                )
+                uploaded += 1
+            except Exception as e:
+                print(f'[WARN] {fpath}: {e}')
 
-        cd hf_space
-        git add .
-        git commit -m "Auto-deploy: updated model and dashboard from GitHub Actions" || echo "No changes"
-        git push origin main
+        print(f'Deployed {uploaded} files to https://huggingface.co/spaces/{space_repo}')
+        "

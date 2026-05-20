@@ -177,7 +177,7 @@ X_test_scaled = pd.DataFrame(X_test_scaled, columns=X_test.columns)
 smote = SMOTE(random_state=42)
 X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled, y_train)
 print(f'Before SMOTE: {dict(y_train.value_counts())}')
-print(f'After SMOTE:  {dict(y_train_resampled.value_counts())}')
+print(f'After SMOTE: {dict(y_train_resampled.value_counts())}')
 
 train_df = pd.concat([X_train.reset_index(drop=True), y_train.reset_index(drop=True)], axis=1)
 test_df = pd.concat([X_test.reset_index(drop=True), y_test.reset_index(drop=True)], axis=1)
@@ -456,7 +456,7 @@ with open('model_building/model_comparison.json', 'w') as f:
 # Model Quality Gate
 if best_score < 0.60 or results[best_model_name]['auc_roc'] < 0.65:
     raise ValueError(f"Quality Gate Failed: Model F1 ({best_score:.4f}) or AUC too low.")
-print(f"\n✅ Quality Gate PASSED — {best_model_name}: F1={best_score:.4f}, AUC={results[best_model_name]['auc_roc']:.4f}")
+print(f"\n Quality Gate PASSED — {best_model_name}: F1={best_score:.4f}, AUC={results[best_model_name]['auc_roc']:.4f}")
 
 if HF_TOKEN:
     model_repo = f'{HF_USERNAME}/engine-maintenance-model'
@@ -512,7 +512,7 @@ if HF_TOKEN:
 
 # %%
 print("\n" + "="*70)
-print("  ACTIONABLE INSIGHTS & BUSINESS RECOMMENDATIONS")
+print(" ACTIONABLE INSIGHTS & BUSINESS RECOMMENDATIONS")
 print("="*70)
 insights = [
     ("RPM-Based Alerts", "Engine RPM is the #1 failure predictor. Implement automated RPM threshold alerts for fleet operators."),
@@ -524,9 +524,9 @@ insights = [
     ("Feature Investment", "Advanced sensor features (FFT, Kurtosis) improve detection. Consider adding vibration sensors."),
 ]
 for i, (title, desc) in enumerate(insights, 1):
-    print(f"\n  {i}. {title}")
-    print(f"     {desc}")
+    print(f"\n {i}. {title}")
+    print(f" {desc}")
 print("\n" + "="*70)
-print(f"  Overall: Model deployment can save an estimated $450K per correctly predicted failure.")
-print(f"  Fleet-wide ROI: 10-30x return on predictive maintenance investment.")
+print(f" Overall: Model deployment can save an estimated $450K per correctly predicted failure.")
+print(f" Fleet-wide ROI: 10-30x return on predictive maintenance investment.")
 print("="*70)

@@ -10,7 +10,10 @@
 # %%
 import os
 import warnings
+import logging
 warnings.filterwarnings('ignore')
+logging.getLogger('joblib').setLevel(logging.ERROR)
+os.environ['LOKY_PICKLER'] = 'pickle'
 
 os.makedirs('data', exist_ok=True)
 os.makedirs('model_building', exist_ok=True)
@@ -381,7 +384,7 @@ try:
     train_sizes, train_scores, val_scores = learning_curve(
         all_models[best_model_name], X_train_resampled, y_train_resampled,
         cv=3, scoring='f1', train_sizes=np.linspace(0.2, 1.0, 5),
-        n_jobs=-1, random_state=42
+        n_jobs=1, random_state=42
     )
     plt.figure(figsize=(10, 6))
     plt.plot(train_sizes, train_scores.mean(axis=1), 'o-', color='#667eea', label='Training F1', linewidth=2)

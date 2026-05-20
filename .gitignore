@@ -35,3 +35,9 @@ notebook_script.ipynb
 
 # Large model files (committed via LFS or manually)
 model_building/base_model.pt
+
+# Retrained model (too large for GitHub, deployed via CI/CD)
+model_building/best_model.joblib
+
+# Executed notebook (generated locally)
+predictive_maintenance_executed.ipynb

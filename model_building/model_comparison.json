@@ -1,0 +1,45 @@
+{
+  "best_model": "VotingEnsemble",
+  "results": {
+    "DecisionTree": {
+      "f1_score": 0.6551724137931034,
+      "auc_roc": 0.5617795731395288,
+      "cv_best_score": 0.6218435393213694
+    },
+    "Bagging": {
+      "f1_score": 0.6982993911400378,
+      "auc_roc": 0.6682579461346488,
+      "cv_best_score": 0.6969822287364367
+    },
+    "RandomForest": {
+      "f1_score": 0.7022389621259678,
+      "auc_roc": 0.67395542674238,
+      "cv_best_score": 0.7034386297520948
+    },
+    "GradientBoosting": {
+      "f1_score": 0.6879037647582981,
+      "auc_roc": 0.7026559563534774,
+      "cv_best_score": 0.6430685886902602
+    },
+    "XGBoost": {
+      "f1_score": 0.6846052051168946,
+      "auc_roc": 0.6872287416084928,
+      "cv_best_score": 0.6559621360052899
+    },
+    "AdaBoost": {
+      "f1_score": 0.6742909423604757,
+      "auc_roc": 0.7009122829511113,
+      "cv_best_score": 0.6300056024375618
+    },
+    "LightGBM": {
+      "f1_score": 0.6861504907306434,
+      "auc_roc": 0.6832636876183023,
+      "cv_best_score": 0.6572446453516015
+    },
+    "VotingEnsemble": {
+      "f1_score": 0.7040990606319385,
+      "auc_roc": 0.6879107185233422,
+      "cv_best_score": 0
+    }
+  }
+}

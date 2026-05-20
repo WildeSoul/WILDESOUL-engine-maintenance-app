@@ -9,6 +9,8 @@ jobs:
   train-and-deploy:
     runs-on: ubuntu-latest
     steps:
+
+    # ── Step 1: Setup ──────────────────────────────────────────────
     - name: Checkout Code
       uses: actions/checkout@v3
 
@@ -31,14 +33,31 @@ jobs:
         pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm plotly scipy
         pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-    - name: Train Traditional Models
+    # ── Step 2: Data Registration & Preparation ────────────────────
+    # This step executes predictive_maintenance.py which:
+    #   - Registers data on HuggingFace dataset space
+    #   - Performs EDA with univariate, bivariate, multivariate analysis
+    #   - Cleans data, handles outliers, engineers features
+    #   - Splits into train/test and uploads to HuggingFace
+    - name: Data Registration and EDA
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         jupytext --to notebook predictive_maintenance.py
+        echo "Converting to notebook and executing all ML steps..."
+
+    # ── Step 3: Model Training & Experiment Tracking ───────────────
+    # Trains Decision Tree, Bagging, Random Forest, AdaBoost,
+    # Gradient Boosting, XGBoost, LightGBM + Voting Ensemble
+    # Logs all parameters and metrics to MLflow
+    - name: Model Training with MLflow Tracking
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      run: |
         jupyter nbconvert --to notebook --execute predictive_maintenance.ipynb --ExecutePreprocessor.timeout=1800
 
-    - name: Quality Gate
+    # ── Step 4: Quality Gate ───────────────────────────────────────
+    - name: Quality Gate - Verify Model Performance
       run: |
         python -c "
         import json
@@ -47,12 +66,38 @@ jobs:
         best = data['best_model']
         f1 = data['results'][best]['f1_score']
         auc = data['results'][best]['auc_roc']
-        print(f'Best: {best} | F1: {f1:.4f} | AUC: {auc:.4f}')
-        assert f1 >= 0.60 and auc >= 0.65, 'Quality Gate FAILED'
+        print(f'Best Model: {best}')
+        print(f'F1 Score: {f1:.4f}')
+        print(f'AUC-ROC: {auc:.4f}')
+        assert f1 >= 0.60 and auc >= 0.65, 'Quality Gate FAILED: Model below threshold'
         print('Quality Gate PASSED')
         "
 
-    - name: Deploy to HuggingFace
+    # ── Step 5: Model Registration on HuggingFace Hub ──────────────
+    - name: Register Best Model on HuggingFace Model Hub
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      run: |
+        python -c "
+        from huggingface_hub import HfApi
+        import os, glob
+        token = os.environ['HF_TOKEN']
+        api = HfApi()
+        user = api.whoami(token=token)['name']
+        repo = f'{user}/engine-maintenance-model'
+        api.create_repo(repo_id=repo, exist_ok=True, token=token)
+        for f in ['best_model.joblib','feature_info.json','model_comparison.json','classification_report.json']:
+            p = f'model_building/{f}'
+            if os.path.exists(p):
+                api.upload_file(path_or_fileobj=p, path_in_repo=f, repo_id=repo, token=token)
+                print(f'Uploaded {f} to {repo}')
+        for fpath in glob.glob('model_building/plots/*.png'):
+            api.upload_file(path_or_fileobj=fpath, path_in_repo=f'plots/{os.path.basename(fpath)}', repo_id=repo, token=token)
+        print(f'Model registered at: https://huggingface.co/{repo}')
+        "
+
+    # ── Step 6: Deploy to HuggingFace Space ────────────────────────
+    - name: Deploy Streamlit App to HuggingFace Space
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
@@ -61,12 +106,13 @@ jobs:
         git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
         rm -f hf_space/Dockerfile
 
-        # Core app files
+        # Core deployment files
         cp deployment/app.py hf_space/
         cp deployment/requirements.txt hf_space/
         cp deployment/README.md hf_space/
+        cp deployment/Dockerfile hf_space/
 
-        # Traditional ML model
+        # Traditional ML model artifacts
         cp model_building/best_model.joblib hf_space/
         cp model_building/feature_info.json hf_space/ 2>/dev/null || true
         cp model_building/model_comparison.json hf_space/ 2>/dev/null || true
@@ -83,12 +129,12 @@ jobs:
         cp model_building/shap_X_sample.npy hf_space/model_building/ 2>/dev/null || true
         cp model_building/plots/*.png hf_space/model_building/plots/ 2>/dev/null || true
 
-        # Transformer model source (for loading)
+        # Transformer source files (for model loading in app)
         cp transformer_model.py hf_space/ 2>/dev/null || true
         cp config.py hf_space/ 2>/dev/null || true
         cp advanced_features.py hf_space/ 2>/dev/null || true
 
         cd hf_space
         git add .
-        git commit -m "Deploy: upgraded Control Room dashboard with FT-Transformer + LoRA" || echo "No changes"
+        git commit -m "Auto-deploy: updated model and dashboard from GitHub Actions" || echo "No changes"
         git push origin main

@@ -100,6 +100,14 @@ def compute_features_inline(inp_df):
 # ── Model Loading ────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_sklearn_model():
+    # Try loading from HuggingFace Model Hub first
+    try:
+        from huggingface_hub import hf_hub_download
+        model_path = hf_hub_download(repo_id="WILDESOUL/engine-maintenance-model", filename="best_model.joblib")
+        return joblib.load(model_path)
+    except Exception:
+        pass
+    # Fallback to local file
     for p in ["best_model.joblib","model_building/best_model.joblib"]:
         if os.path.exists(p): return joblib.load(p)
     return None

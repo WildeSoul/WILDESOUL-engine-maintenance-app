@@ -71,7 +71,7 @@ The dataset models sensor readings from engines. Features include RPM, oil/fuel/
 ## 4. Model Building with Experimentation Tracking (8 Points)
 
 ### 4.1 Algorithms Used
-Decision Tree, Random Forest, Gradient Boosting, XGBoost, AdaBoost, LightGBM.
+Decision Tree, Bagging, Random Forest, Gradient Boosting, XGBoost, AdaBoost, LightGBM.
 
 ### 4.2 Tuning
 `RandomizedSearchCV` with 5-fold StratifiedKFold, optimizing F1 Score.

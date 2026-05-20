@@ -1,89 +1,114 @@
-# 🔧 Predictive Maintenance — Engine Health Monitoring
+# Predictive Engine Maintenance — PGP Capstone Project
 
 [![GitHub Actions](https://github.com/WildeSoul/WILDESOUL-engine-maintenance-app/actions/workflows/pipeline.yml/badge.svg)](https://github.com/WildeSoul/WILDESOUL-engine-maintenance-app/actions)
-[![HuggingFace Space](https://img.shields.io/badge/🤗%20Live%20Demo-HuggingFace-blue)](https://huggingface.co/spaces/WILDESOUL/engine-maintenance-app)
+[![HuggingFace](https://img.shields.io/badge/HuggingFace-Live%20App-yellow)](https://huggingface.co/spaces/WILDESOUL/engine-maintenance-app)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-ee4c2c)](https://pytorch.org)
+[![LoRA](https://img.shields.io/badge/PEFT-LoRA-green)](https://github.com/huggingface/peft)
 
-An end-to-end **MLOps pipeline** for predictive engine maintenance — from raw sensor data to a deployed Streamlit web app, fully automated via GitHub Actions.
-
----
-
-## 📋 Problem Statement
-
-Vehicle breakdowns lead to significant financial losses. This project builds a machine learning classification model that analyzes engine sensor data (RPM, temperature, pressure) to predict whether an engine requires maintenance — enabling proactive intervention before failure occurs.
-
-## 🏗️ Project Structure
+## Architecture
 
 ```
-├── .github/workflows/
-│   └── pipeline.yml              # CI/CD: Train → Evaluate → Deploy
-├── data/
-│   ├── engine_data.csv           # Raw dataset (19,536 rows)
-│   ├── train.csv                 # Training split (80%)
-│   └── test.csv                  # Test split (20%)
-├── deployment/
-│   ├── app.py                    # Streamlit web application
-│   ├── requirements.txt          # Python dependencies
-│   └── README.md                 # HF Space config
-├── model_building/
-│   ├── best_model.joblib         # Trained model pipeline
-│   ├── feature_info.json         # Feature metadata
-│   ├── model_comparison.json     # All model results
-│   └── plots/                    # EDA & evaluation visualizations
-├── predictive_maintenance.py     # Main ML script (jupytext)
-├── predictive_maintenance.ipynb  # Jupyter Notebook
-├── drift_monitor.py              # Data drift detection
-├── feature_engineering.py        # Rolling window features
-├── Interim_Report.md             # Interim business report
-├── Final_Report.md               # Final business report
-└── README.md                     # This file
+[ 6 Engine Sensors ]
+        |
+        v
+[ Advanced Feature Engineering ]
+  - Time-Domain: RMS, Kurtosis, Skewness, Crest Factor
+  - Frequency-Domain: FFT Magnitudes, Spectral Energy, Centroid
+  - Cross-Sensor: Thermal Load, Pressure Gradient, Z-Scores
+  = 31 Total Features
+        |
+        v
+[ FT-Transformer (Feature Tokenizer Transformer) ]
+  - Feature Tokenization: Each feature -> 64-dim embedding
+  - Transformer Encoder: 3 layers, 4 heads
+  - LoRA Fine-Tuning on Q, V matrices (rank=8, alpha=32)
+  - 91% parameter reduction (115K total -> 10K trainable)
+        |
+        v
+[ Multi-Task Output ]
+  - Classification: Normal / Faulty
+  - Severity: Failure risk score [0, 1]
+        |
+        v
+[ SHAP Explainability Dashboard ]
+  - Per-prediction sensor contribution
+  - Global feature importance
+  - Integrated in Streamlit Control Room
 ```
 
-## ⚙️ Pipeline Features
+## Key Features
 
-| Stage | Details |
-|-------|---------|
-| **Data Registration** | Hugging Face Datasets (`WILDESOUL/engine-predictive-maintenance-dataset`) |
-| **EDA** | Univariate, bivariate, multivariate analysis + Mutual Information |
-| **Preprocessing** | IQR outlier capping, StandardScaler, 3 engineered features |
-| **Class Balancing** | SMOTE on training data |
-| **Model Training** | 6 algorithms: DecisionTree, RandomForest, GradientBoosting, XGBoost, AdaBoost, LightGBM |
-| **Tuning** | RandomizedSearchCV with 5-fold StratifiedKFold |
-| **Tracking** | MLflow (10 metrics per model) |
-| **Explainability** | SHAP TreeExplainer |
-| **Quality Gate** | F1 > 0.60, AUC > 0.65 |
-| **Deployment** | Streamlit on HuggingFace Spaces |
-| **CI/CD** | GitHub Actions (auto-trigger on push to main) |
+| Feature | Details |
+|---------|---------|
+| **FT-Transformer + LoRA** | Parameter-efficient fine-tuning with 91% reduction |
+| **31 Engineered Features** | Signal processing (FFT, RMS, Kurtosis) + domain-specific |
+| **7 Traditional ML Models** | DecisionTree, RF, GBM, XGBoost, AdaBoost, LightGBM, VotingEnsemble |
+| **SHAP Explainability** | Sensor-level contribution analysis |
+| **NASA Asymmetric Scoring** | Business-aware metric (penalizes missed failures 3x) |
+| **Enterprise Metrics** | Macro F1, PR-AUC, MCC, Cost-Weighted Analysis |
+| **7-Tab Control Room** | Prediction, Sensors, SHAP, Comparison, LoRA, Fleet, Batch |
+| **CI/CD Pipeline** | GitHub Actions -> auto-deploy to HuggingFace Spaces |
+| **MLflow Tracking** | LoRA hyperparameter experiments logged |
 
-## 🚀 Quick Start
+## Tech Stack
+
+- **Deep Learning:** PyTorch, Custom FT-Transformer, LoRA
+- **Traditional ML:** scikit-learn, XGBoost, LightGBM
+- **Feature Engineering:** scipy (FFT), numpy
+- **Explainability:** SHAP (KernelExplainer)
+- **Experiment Tracking:** MLflow
+- **Deployment:** Streamlit on HuggingFace Spaces
+- **CI/CD:** GitHub Actions
+- **GPU:** NVIDIA RTX 4060
+
+## Quick Start
 
 ```bash
-# Clone
-git clone https://github.com/WildeSoul/WILDESOUL-engine-maintenance-app.git
-cd WILDESOUL-engine-maintenance-app
-
-# Install
-pip install -r deployment/requirements.txt
-pip install mlflow matplotlib seaborn imbalanced-learn shap lightgbm jupytext
-
-# Train models
+# Train traditional models (runs in CI/CD automatically)
 python predictive_maintenance.py
 
-# Run app locally
-cd deployment && streamlit run app.py
+# Train transformer with LoRA (requires GPU)
+python train_transformer.py
+
+# Launch dashboard locally
+streamlit run deployment/app.py
 ```
 
-## 🔄 CI/CD Automation
+## Project Structure
 
-Every push to `main` automatically:
-1. Installs dependencies
-2. Converts `.py` → `.ipynb` via jupytext
-3. Executes the notebook (trains 6 models)
-4. Deploys the Streamlit app to HuggingFace Spaces
+```
+WILDESOUL-engine-maintenance-app/
+├── .github/workflows/pipeline.yml    # CI/CD pipeline
+├── data/engine_data.csv              # Raw dataset (19,535 rows)
+├── deployment/
+│   ├── app.py                        # 7-tab Control Room Dashboard
+│   ├── requirements.txt              # Dependencies
+│   ├── README.md                     # HF Space config
+│   └── Dockerfile                    # Container config
+├── model_building/
+│   ├── best_model.joblib             # Traditional ML pipeline
+│   ├── transformer_model.pt          # FT-Transformer + LoRA weights
+│   ├── transformer_scaler.joblib     # Feature scaler
+│   ├── evaluation_report.json        # Enterprise metrics
+│   ├── training_history.json         # Loss/F1 curves
+│   ├── param_stats.json              # LoRA parameter stats
+│   └── plots/                        # Visualizations
+├── config.py                         # Centralized configuration
+├── advanced_features.py              # Signal processing features
+├── transformer_model.py              # FT-Transformer + LoRA architecture
+├── train_transformer.py              # GPU training script
+├── evaluation_metrics.py             # Enterprise metrics (NASA, PR-AUC)
+├── predictive_maintenance.py         # Traditional ML pipeline
+├── VIVA_NOTES.md                     # Viva preparation
+├── Final_Report.md                   # Business report
+└── README.md                         # This file
+```
 
-## 📊 Live Demo
+## License
 
-👉 **[Try the Streamlit App](https://huggingface.co/spaces/WILDESOUL/engine-maintenance-app)**
+Apache 2.0
 
 ---
 
-*AIML Capstone Project — Predictive Maintenance © 2026 WildeSoul*
+> **PGP in AIML Capstone** | 2026 WildeSoul

@@ -32,3 +32,6 @@ push_updates.bat
 # Notebook script (intermediate)
 notebook_script.py
 notebook_script.ipynb
+
+# Large model files (committed via LFS or manually)
+model_building/base_model.pt

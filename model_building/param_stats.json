@@ -1,0 +1,52 @@
+{
+  "base": {
+    "total_params": 110786,
+    "trainable_params": 110786,
+    "frozen_params": 0,
+    "lora_params": 0,
+    "head_params": 4226,
+    "reduction_pct": 0.0
+  },
+  "lora": {
+    "total_params": 116930,
+    "trainable_params": 10370,
+    "frozen_params": 106560,
+    "lora_params": 6144,
+    "head_params": 4226,
+    "reduction_pct": 91.1
+  },
+  "feature_names": [
+    "Engine_RPM",
+    "Lub_Oil_Pressure",
+    "Fuel_Pressure",
+    "Coolant_Pressure",
+    "Lub_Oil_Temperature",
+    "Coolant_Temperature",
+    "Sensor_RMS",
+    "Sensor_Kurtosis",
+    "Sensor_Skewness",
+    "Sensor_PeakToPeak",
+    "Sensor_CrestFactor",
+    "Sensor_Std",
+    "Sensor_CV",
+    "FFT_DC",
+    "FFT_Mag_1",
+    "FFT_Mag_2",
+    "FFT_Mag_3",
+    "Spectral_Energy",
+    "Spectral_Centroid",
+    "Dominant_Freq_Bin",
+    "Temp_Pressure_Ratio",
+    "Coolant_Efficiency",
+    "Temp_Differential",
+    "Thermal_Load",
+    "Pressure_Gradient",
+    "Total_Pressure",
+    "Oil_Press_per_RPM",
+    "Engine_RPM_ZScore",
+    "Lub_Oil_Pressure_ZScore",
+    "Lub_Oil_Temperature_ZScore",
+    "High_RPM_Flag"
+  ],
+  "n_features": 31
+}

@@ -28,9 +28,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r deployment/requirements.txt
-        pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm plotly
+        pip install jupyter nbconvert jupytext huggingface_hub mlflow matplotlib seaborn imbalanced-learn shap lightgbm plotly scipy
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-    - name: Train Models
+    - name: Train Traditional Models
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
@@ -59,13 +60,35 @@ jobs:
         git config --global user.name "GitHub Actions"
         git clone https://WildeSoul:$HF_TOKEN@huggingface.co/spaces/WILDESOUL/engine-maintenance-app hf_space
         rm -f hf_space/Dockerfile
+
+        # Core app files
         cp deployment/app.py hf_space/
         cp deployment/requirements.txt hf_space/
         cp deployment/README.md hf_space/
+
+        # Traditional ML model
         cp model_building/best_model.joblib hf_space/
         cp model_building/feature_info.json hf_space/ 2>/dev/null || true
         cp model_building/model_comparison.json hf_space/ 2>/dev/null || true
+
+        # Transformer model & artifacts (if trained locally and committed)
+        mkdir -p hf_space/model_building/plots
+        cp model_building/transformer_model.pt hf_space/model_building/ 2>/dev/null || true
+        cp model_building/transformer_scaler.joblib hf_space/model_building/ 2>/dev/null || true
+        cp model_building/param_stats.json hf_space/model_building/ 2>/dev/null || true
+        cp model_building/evaluation_report.json hf_space/model_building/ 2>/dev/null || true
+        cp model_building/training_history.json hf_space/model_building/ 2>/dev/null || true
+        cp model_building/shap_values.npy hf_space/model_building/ 2>/dev/null || true
+        cp model_building/shap_feature_names.json hf_space/model_building/ 2>/dev/null || true
+        cp model_building/shap_X_sample.npy hf_space/model_building/ 2>/dev/null || true
+        cp model_building/plots/*.png hf_space/model_building/plots/ 2>/dev/null || true
+
+        # Transformer model source (for loading)
+        cp transformer_model.py hf_space/ 2>/dev/null || true
+        cp config.py hf_space/ 2>/dev/null || true
+        cp advanced_features.py hf_space/ 2>/dev/null || true
+
         cd hf_space
         git add .
-        git commit -m "Deploy: retrained model and updated app" || echo "No changes"
+        git commit -m "Deploy: upgraded Control Room dashboard with FT-Transformer + LoRA" || echo "No changes"
         git push origin main

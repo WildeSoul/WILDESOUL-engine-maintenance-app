@@ -1,0 +1,71 @@
+{
+  "model_name": "FT-Transformer+LoRA",
+  "n_samples": 3907,
+  "class_distribution": {
+    "normal": 1444,
+    "faulty": 2463,
+    "faulty_rate": 0.6304069618633222
+  },
+  "classification_metrics": {
+    "test_accuracy": 0.6352700281545943,
+    "test_balanced_accuracy": 0.6346497413801829,
+    "test_precision": 0.7471428571428571,
+    "test_recall": 0.6370280146163215,
+    "test_f1_binary": 0.6877054569362262,
+    "test_f1_macro": 0.6246893941094542,
+    "test_f1_weighted": 0.6411248607131095,
+    "test_mcc": 0.26071294663891853,
+    "test_auc_roc": 0.6886611602408161,
+    "test_pr_auc": 0.7886229245938012,
+    "test_log_loss": 0.6224750483306837
+  },
+  "cost_analysis": {
+    "true_negatives": 913,
+    "false_positives": 531,
+    "false_negatives": 894,
+    "true_positives": 1569,
+    "total_cost_usd": 449655000.0,
+    "total_savings_usd": 706050000.0,
+    "net_value_usd": 256395000.0,
+    "cost_per_prediction": 115089.58280010238,
+    "fn_cost_total": 447000000.0,
+    "fp_cost_total": 2655000.0
+  },
+  "classification_report": {
+    "Normal": {
+      "precision": 0.5052573325954621,
+      "recall": 0.6322714681440443,
+      "f1-score": 0.5616733312826823,
+      "support": 1444.0
+    },
+    "Faulty": {
+      "precision": 0.7471428571428571,
+      "recall": 0.6370280146163215,
+      "f1-score": 0.6877054569362262,
+      "support": 2463.0
+    },
+    "accuracy": 0.6352700281545943,
+    "macro avg": {
+      "precision": 0.6262000948691596,
+      "recall": 0.6346497413801829,
+      "f1-score": 0.6246893941094542,
+      "support": 3907.0
+    },
+    "weighted avg": {
+      "precision": 0.6577436512441015,
+      "recall": 0.6352700281545943,
+      "f1-score": 0.6411248607131095,
+      "support": 3907.0
+    }
+  },
+  "nasa_asymmetric_score": {
+    "nasa_total_score": 155.5066236007005,
+    "nasa_score_per_sample": 0.03980205364747901,
+    "fn_penalty": 102.4298382651219,
+    "fp_penalty": 53.07678533557856,
+    "fn_count": 894,
+    "fp_count": 531,
+    "penalty_ratio": 1.929842540717342,
+    "interpretation": "Total asymmetric score: 155.51. FN penalty (894 missed failures): 102.43. FP penalty (531 false alarms): 53.08. Penalty ratio: 1.9x (FN penalized more severely)."
+  }
+}

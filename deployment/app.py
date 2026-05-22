@@ -333,10 +333,10 @@ with tab3:
         sc1, sc2 = st.columns(2)
         with sc1:
             if os.path.exists(shap_summary_img):
-                st.image(shap_summary_img, caption="SHAP Summary (Beeswarm)", use_container_width=True)
+                st.image(shap_summary_img, caption="SHAP Summary (Beeswarm)", use_column_width=True)
         with sc2:
             if os.path.exists(shap_bar_img):
-                st.image(shap_bar_img, caption="SHAP Feature Importance", use_container_width=True)
+                st.image(shap_bar_img, caption="SHAP Feature Importance", use_column_width=True)
     else:
         st.info("SHAP data not yet generated. Run `python train_transformer.py` to generate SHAP explanations.")
         st.markdown("""
